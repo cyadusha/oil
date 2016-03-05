@@ -1,0 +1,78 @@
+---
+title: "oil"
+author: "Yadu"
+date: "March 4, 2016"
+output: html_document
+---
+
+First we load the csv data into R from Github. We also load the required packages.
+
+```{r}
+library(RCurl)
+library(tidyr)
+library(dplyr)
+url = 'https://raw.githubusercontent.com/cyadusha/oil/master/oil.csv'
+x = getURL(url)
+oil = read.csv(file = textConnection(x), header = TRUE)
+```
+
+We write the following if loop nested within the for loop to replace the empty spaces in the first column with the month names. 
+
+```{r}
+for (i in 1:14){
+  if (i %% 2 == 0){
+    oil[i,1] = oil[i-1,1]
+  }
+}
+```
+
+Now we gather all of the Brand names into one column and separate the numeric column into two columns - "Purchased" and "Consumed".
+
+```{r}
+oil = oil %>% gather(Brand, N, Caltex:Mobil, na.rm = T) %>% separate(N, c("Purchased", "Consumed"))
+```
+
+Even though we are not interested in the opening balances, we replace all of the "000's" in the "Consumed" column with just "0". For this we have to load the stringr package.
+
+```{r}
+library(stringr)
+oil[,5] = str_replace_all(oil[,5], "000", "0")
+```
+
+Now, we convert both the columns into vectors that contain numeric values.
+
+```{r}
+oil$Purchased = as.numeric(oil$Purchased)
+oil$Consumed = as.numeric(oil$Consumed)
+```
+
+Because we are not interested in the opening balance, we filter out all of the rows which have "Open" as the month name.
+
+```{r}
+oil = filter(oil, Month != "Open")
+```
+
+Now to compute the closing balance by category and brand we use group_by, summarise, and sum commands.
+
+```{r}
+closingbalance = oil %>% group_by(Category, Brand) %>% summarise(Purchased = sum(Purchased), Consumed = sum(Consumed), Balance = Purchased - Consumed)
+```
+
+Because we want these values to be read as numeric values, we use the data.frame command.
+
+```{r}
+closingbalance = data.frame(closingbalance)
+```
+
+Now to find the most consumed brand in each category, we first take the closing balance data frame and use the group_by, summarise, and max commands. The which.max command not only renders the maximum value but the entire row that contains the maximum value we would be looking for.
+
+```{r}
+mostconsumed = closingbalance %>% group_by(Category) %>% summarise(Brand = Brand[which.max(Consumed)], Consumed = max(Consumed))
+mostconsumed = data.frame(mostconsumed)
+```
+
+Now, we use the following command from the string package to convert the closing balance vector into the original format given.
+
+```{r}
+closingbalance[,5] = str_c(closingbalance[,5], sep = ":", "000")
+```
